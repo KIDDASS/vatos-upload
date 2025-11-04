@@ -3,10 +3,10 @@ if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allo
 
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_REPO = process.env.GITHUB_REPO; // owner/repo
+const GITHUB_REPO = process.env.GITHUB_REPO;
 const UPLOAD_PASSWORD = process.env.UPLOAD_PASSWORD || 'vatospermup';
 const BRANCH = process.env.BRANCH || 'main';
-const UPLOAD_PATH = process.env.UPLOAD_PATH || 'uploads';
+const UPLOAD_PATH = process.env.UPLOAD_PATH || 'gallery';
 
 
 if (!GITHUB_TOKEN || !GITHUB_REPO) {
@@ -15,12 +15,11 @@ return res.status(500).json({ error: 'Server misconfigured: set GITHUB_TOKEN and
 
 
 try {
-const { filename, content, message, password } = req.body || {};
+const { filename, content, password } = req.body || {};
 if (!filename || !content) return res.status(400).json({ error: 'Missing filename/content' });
 if (password !== UPLOAD_PASSWORD) return res.status(401).json({ error: 'Invalid password' });
 
 
-// sanitize filename
 const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
 const path = `${UPLOAD_PATH}/${ts}-${safeName}`;
@@ -30,7 +29,7 @@ const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURICom
 
 
 const body = {
-message: message || `Add ${safeName}`,
+message: `Upload ${safeName} to gallery`,
 content: content,
 branch: BRANCH
 };
@@ -51,7 +50,6 @@ const json = await apiRes.json();
 if (!apiRes.ok) return res.status(apiRes.status).json({ error: json.message || json });
 
 
-// respond with file info
 const fileInfo = {
 path: json.content.path,
 sha: json.content.sha,
