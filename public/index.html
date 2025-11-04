@@ -317,10 +317,10 @@
     <p class="subtitle">Drag and drop or click to choose an image to upload.</p>
     <form id="uploadForm" class="uploader" autocomplete="off">
       <div id="dropZone" class="drop-zone">
-        <input id="fileInput" type="file" name="image" accept="image/*" required />
+        <input id="fileInput" type="file" name="image" accept="image/*" multiple required />
         <div class="drop-inner">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18l-5 6h3v6h4v-6h3l-5-6z"/></svg>
-          <div class="drop-text">Drag & drop image here<span class="muted">or click to browse</span></div>
+          <div class="drop-text">Drag & drop images here<span class="muted">or click to browse (multiple files supported)</span></div>
         </div>
       </div>
       <button id="uploadBtn" type="submit">Upload Image</button>
@@ -348,56 +348,83 @@
       const dt = e.dataTransfer;
       if (!dt.files.length) return;
       fileInput.files = dt.files;
-      showPreview(dt.files[0]);
+      showPreviews(dt.files);
     });
     fileInput.addEventListener('change', () => {
-      if (fileInput.files.length) showPreview(fileInput.files[0]);
+      if (fileInput.files.length) showPreviews(fileInput.files);
     });
     
-    function showPreview(file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = document.createElement('img');
-        img.src = e.target.result;
-        img.alt = 'preview';
-        img.className = 'thumb';
-        preview.insertBefore(img, preview.firstChild);
-      };
-      reader.readAsDataURL(file);
+    function showPreviews(files) {
+      Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.alt = 'preview';
+          img.className = 'thumb';
+          preview.insertBefore(img, preview.firstChild);
+        };
+        reader.readAsDataURL(file);
+      });
     }
     
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const file = fileInput.files[0];
-      if (!file) {
+      const files = fileInput.files;
+      if (!files.length) {
         status.style.display = 'block';
-        status.textContent = '⚠️ Please select a file.';
+        status.textContent = '⚠️ Please select at least one file.';
         return;
       }
+      
       status.style.display = 'block';
-      status.textContent = '⏳ Uploading...';
-      try {
-        const ab = await file.arrayBuffer();
-        const bytes = new Uint8Array(ab);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-        const b64 = btoa(binary);
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, content: b64, password: PASSWORD })
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Upload failed');
-        status.innerHTML = `✅ Uploaded successfully!`;
-        const uploadedImg = document.createElement('img');
-        uploadedImg.src = `https://raw.githubusercontent.com/${json.html_url.split('/')[3]}/${json.html_url.split('/')[4]}/main/${json.path}`;
-        uploadedImg.alt = 'uploaded';
-        uploadedImg.className = 'thumb';
-        preview.insertBefore(uploadedImg, preview.firstChild);
-      } catch (err) {
-        console.error(err);
-        status.textContent = '❌ Error: ' + err.message;
+      status.textContent = `⏳ Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`;
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) {
+          failCount++;
+          continue;
+        }
+        
+        try {
+          const ab = await file.arrayBuffer();
+          const bytes = new Uint8Array(ab);
+          let binary = '';
+          for (let j = 0; j < bytes.byteLength; j++) binary += String.fromCharCode(bytes[j]);
+          const b64 = btoa(binary);
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, content: b64, password: PASSWORD })
+          });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error || 'Upload failed');
+          
+          successCount++;
+          status.textContent = `⏳ Uploaded ${successCount}/${files.length}...`;
+          
+          const uploadedImg = document.createElement('img');
+          uploadedImg.src = `https://raw.githubusercontent.com/${json.html_url.split('/')[3]}/${json.html_url.split('/')[4]}/main/${json.path}`;
+          uploadedImg.alt = 'uploaded';
+          uploadedImg.className = 'thumb';
+          preview.insertBefore(uploadedImg, preview.firstChild);
+        } catch (err) {
+          console.error(err);
+          failCount++;
+        }
+      }
+      
+      if (successCount > 0 && failCount === 0) {
+        status.textContent = `✅ Successfully uploaded ${successCount} image${successCount > 1 ? 's' : ''}!`;
+      } else if (successCount > 0 && failCount > 0) {
+        status.textContent = `⚠️ Uploaded ${successCount} image${successCount > 1 ? 's' : ''}, ${failCount} failed.`;
+      } else {
+        status.textContent = '❌ All uploads failed. Please try again.';
       }
     });
   </script>
