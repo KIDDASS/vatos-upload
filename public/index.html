@@ -1,53 +1,345 @@
-
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GitHub Gallery Uploader</title>
-  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --card: #141414;
+      --card-hover: #1a1a1a;
+      --text: #ffffff;
+      --text-muted: #888888;
+      --accent: #ff0000;
+      --accent-hover: #cc0000;
+      --border: #2a2a2a;
+      --radius: 16px;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 30% 50%, rgba(255, 0, 0, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 50%, rgba(255, 0, 0, 0.05) 0%, transparent 50%);
+      animation: pulse 15s ease-in-out infinite;
+      pointer-events: none;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+      50% { transform: scale(1.1) rotate(180deg); opacity: 0.8; }
+    }
+    
+    .container {
+      max-width: 600px;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+    
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ffffff 0%, #ff0000 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
+      text-align: center;
+    }
+    
+    .subtitle {
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    
+    .uploader {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+    
+    .uploader:hover {
+      box-shadow: 0 25px 70px rgba(255, 0, 0, 0.15);
+      border-color: rgba(255, 0, 0, 0.3);
+    }
+    
+    .drop-zone {
+      background: linear-gradient(135deg, rgba(255, 0, 0, 0.05) 0%, rgba(255, 0, 0, 0.02) 100%);
+      border: 2px dashed rgba(255, 0, 0, 0.4);
+      padding: 48px 32px;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .drop-zone::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: radial-gradient(circle, rgba(255, 0, 0, 0.1) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      transition: all 0.5s ease;
+      border-radius: 50%;
+    }
+    
+    .drop-zone:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    .drop-zone:hover {
+      background: linear-gradient(135deg, rgba(255, 0, 0, 0.1) 0%, rgba(255, 0, 0, 0.05) 100%);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    
+    .drop-zone.dragover {
+      background: linear-gradient(135deg, rgba(255, 0, 0, 0.15) 0%, rgba(255, 0, 0, 0.08) 100%);
+      border-color: var(--accent);
+      transform: scale(1.02);
+    }
+    
+    .drop-inner {
+      position: relative;
+      z-index: 1;
+    }
+    
+    #fileInput {
+      display: none;
+    }
+    
+    .icon {
+      width: 56px;
+      height: 56px;
+      fill: var(--accent);
+      margin-bottom: 16px;
+      filter: drop-shadow(0 4px 8px rgba(255, 0, 0, 0.3));
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .drop-text {
+      color: var(--text);
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .drop-text .muted {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 400;
+      display: block;
+      margin-top: 8px;
+    }
+    
+    button {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent) 0%, #cc0000 100%);
+      color: white;
+      border: none;
+      padding: 16px 24px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 24px;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 8px 20px rgba(255, 0, 0, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    button::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    
+    button:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(255, 0, 0, 0.5);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    .status {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 10px;
+      font-weight: 500;
+      text-align: center;
+      animation: slideIn 0.3s ease;
+      background: var(--card-hover);
+      border: 1px solid var(--border);
+    }
+    
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .preview {
+      margin-top: 24px;
+      text-align: center;
+      animation: fadeIn 0.5s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .preview img.thumb {
+      max-width: 100%;
+      max-height: 350px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(255, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+    
+    .preview img.thumb:hover {
+      transform: scale(1.02);
+      box-shadow: 0 15px 50px rgba(255, 0, 0, 0.3);
+    }
+    
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    
+    a::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: var(--accent);
+      transition: width 0.3s ease;
+    }
+    
+    a:hover::after {
+      width: 100%;
+    }
+    
+    a:hover {
+      color: var(--accent-hover);
+    }
+    
+    .watermark {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      z-index: 100;
+      opacity: 0.5;
+      transition: opacity 0.3s ease;
+    }
+    
+    .watermark:hover {
+      opacity: 1;
+    }
+  </style>
 </head>
 <body>
   <main class="container">
-    <h1>GitHub Gallery Uploader</h1>
-    <p>Drag & drop or click to choose an image, enter the password (<strong>vatospermup</strong>), and upload to your GitHub <code>gallery</code> folder.</p>
-
+    <h1>LVL</h1>
+    <p class="subtitle">Drag and drop or click to choose an image to upload.</p>
     <form id="uploadForm" class="uploader" autocomplete="off">
       <div id="dropZone" class="drop-zone">
         <input id="fileInput" type="file" name="image" accept="image/*" required />
         <div class="drop-inner">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18l-5 6h3v6h4v-6h3l-5-6z"/></svg>
-          <div class="drop-text">Drag & drop image here<br><span class="muted">or click to browse</span></div>
+          <div class="drop-text">Drag & drop image here<span class="muted">or click to browse</span></div>
         </div>
       </div>
-
-      <label class="field">
-        <span>Password</span>
-        <input id="password" type="password" name="password" placeholder="upload password" required />
-      </label>
-
-      <button id="uploadBtn" type="submit">Upload image</button>
+      <button id="uploadBtn" type="submit">Upload Image</button>
     </form>
-
-    <div id="status" class="status"></div>
+    <div id="status" class="status" style="display:none;"></div>
     <div id="preview" class="preview"></div>
   </main>
-
+  <div class="watermark">MADE BY KIDD</div>
   <script>
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const form = document.getElementById('uploadForm');
     const status = document.getElementById('status');
     const preview = document.getElementById('preview');
-
-    // Handle drag-and-drop visuals
+    const PASSWORD = 'vatospermup';
+    
     ['dragenter', 'dragover'].forEach(evt => {
       dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
     });
     ['dragleave', 'drop'].forEach(evt => {
       dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
     });
-
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('drop', (e) => {
       const dt = e.dataTransfer;
@@ -58,7 +350,7 @@
     fileInput.addEventListener('change', () => {
       if (fileInput.files.length) showPreview(fileInput.files[0]);
     });
-
+    
     function showPreview(file) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -66,31 +358,30 @@
       };
       reader.readAsDataURL(file);
     }
-
+    
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const file = fileInput.files[0];
-      const password = document.getElementById('password').value;
-      if (!file) return status.textContent = '⚠️ Please select a file.';
-
+      if (!file) {
+        status.style.display = 'block';
+        status.textContent = '⚠️ Please select a file.';
+        return;
+      }
+      status.style.display = 'block';
       status.textContent = '⏳ Uploading...';
-
       try {
         const ab = await file.arrayBuffer();
         const bytes = new Uint8Array(ab);
         let binary = '';
         for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
         const b64 = btoa(binary);
-
         const res = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, content: b64, password })
+          body: JSON.stringify({ filename: file.name, content: b64, password: PASSWORD })
         });
-
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Upload failed');
-
         status.innerHTML = `✅ Uploaded successfully! <a href="${json.html_url}" target="_blank">View on GitHub</a>`;
         preview.innerHTML = `<img src="https://raw.githubusercontent.com/${json.html_url.split('/')[3]}/${json.html_url.split('/')[4]}/main/${json.path}" alt="uploaded" class="thumb">`;
       } catch (err) {
