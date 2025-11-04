@@ -1,74 +1,102 @@
+
 <!doctype html>
-<input type="password" name="password" placeholder="upload password" required />
-</label>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GitHub Image Uploader</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="container">
+    <h1>GitHub Image Uploader</h1>
+    <p>Drag & drop an image into the box below or click to choose one. Enter the upload password (set in Vercel as <code>UPLOAD_PASSWORD</code> — we suggested <strong>vatospermup</strong>).</p>
 
+    <form id="uploadForm" class="uploader" autocomplete="off">
+      <div id="dropZone" class="drop-zone">
+        <input id="fileInput" type="file" name="image" accept="image/*" required />
+        <div class="drop-inner">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18l-5 6h3v6h4v-6h3l-5-6z"/></svg>
+          <div class="drop-text">Drag & drop image here<br><span class="muted">or click to browse</span></div>
+        </div>
+      </div>
 
-<label>
-Commit message (optional)
-<input type="text" name="message" placeholder="Add a commit message" />
-</label>
+      <label class="field">
+        <span>Password</span>
+        <input id="password" type="password" name="password" placeholder="upload password" required />
+      </label>
 
+      <button id="uploadBtn" type="submit">Upload image</button>
+    </form>
 
-<button type="submit">Upload to GitHub</button>
-</form>
+    <div id="result" class="result" aria-live="polite"></div>
+  </main>
 
+  <script>
+    // Simple drag-and-drop + upload script
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const form = document.getElementById('uploadForm');
+    const result = document.getElementById('result');
 
-<div id="result" style="margin-top:16px"></div>
+    // Visual helpers
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); });
+    });
 
+    // Drop file
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      if (!dt || !dt.files || dt.files.length === 0) return;
+      fileInput.files = dt.files;
+    });
 
-<script>
-const form = document.getElementById('uploadForm');
-const result = document.getElementById('result');
+    // Click to open file dialog
+    dropZone.addEventListener('click', () => fileInput.click());
 
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      result.textContent = '';
 
-form.addEventListener('submit', async (e) => {
-e.preventDefault();
-result.textContent = 'Uploading...';
+      const file = fileInput.files[0];
+      const password = document.getElementById('password').value;
 
+      if (!file) return result.textContent = 'Please choose an image file.';
+      if (!password) return result.textContent = 'Please enter the upload password.';
 
-const fd = new FormData(form);
-const file = fd.get('image');
-const password = fd.get('password');
-const message = fd.get('message') || `Upload ${file.name}`;
+      result.textContent = 'Uploading...';
+      try {
+        const ab = await file.arrayBuffer();
+        const bytes = new Uint8Array(ab);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const b64 = btoa(binary);
 
+        const payload = {
+          filename: file.name,
+          content: b64,
+          password
+        };
 
-if (!file) return result.textContent = 'No file chosen.';
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || JSON.stringify(json));
 
-try {
-// Read file as ArrayBuffer and convert to base64
-const ab = await file.arrayBuffer();
-const bytes = new Uint8Array(ab);
-let binary = '';
-for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-const b64 = btoa(binary);
-
-
-const payload = {
-filename: file.name,
-content: b64,
-message,
-password
-};
-
-
-const res = await fetch('/api/upload', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload)
-});
-
-
-const json = await res.json();
-if (!res.ok) throw new Error(json.error || JSON.stringify(json));
-
-
-result.innerHTML = `✅ Uploaded! File: <a href="${json.html_url}" target="_blank">${json.path}</a>`;
-} catch (err) {
-console.error(err);
-result.textContent = 'Error: ' + (err.message || err);
-}
-});
-</script>
+        result.innerHTML = `✅ Uploaded! File: <a href="${json.html_url}" target="_blank" rel="noopener">${json.path}</a>`;
+      } catch (err) {
+        console.error(err);
+        result.textContent = 'Error: ' + (err.message || err);
+      }
+    });
+  </script>
 </body>
 </html>
+
