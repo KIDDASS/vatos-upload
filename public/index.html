@@ -239,7 +239,9 @@
     
     .preview {
       margin-top: 24px;
-      text-align: center;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
       animation: fadeIn 0.5s ease;
     }
     
@@ -249,8 +251,9 @@
     }
     
     .preview img.thumb {
-      max-width: 100%;
-      max-height: 350px;
+      width: 100%;
+      height: 250px;
+      object-fit: cover;
       border-radius: 12px;
       box-shadow: 0 10px 40px rgba(255, 0, 0, 0.2);
       border: 1px solid var(--border);
@@ -354,7 +357,11 @@
     function showPreview(file) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        preview.innerHTML = `<img src="${e.target.result}" alt="preview" class="thumb">`;
+        const img = document.createElement('img');
+        img.src = e.target.result;
+        img.alt = 'preview';
+        img.className = 'thumb';
+        preview.insertBefore(img, preview.firstChild);
       };
       reader.readAsDataURL(file);
     }
@@ -382,8 +389,12 @@
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Upload failed');
-        status.innerHTML = `✅ Uploaded successfully! <a href="${json.html_url}" target="_blank">View on GitHub</a>`;
-        preview.innerHTML = `<img src="https://raw.githubusercontent.com/${json.html_url.split('/')[3]}/${json.html_url.split('/')[4]}/main/${json.path}" alt="uploaded" class="thumb">`;
+        status.innerHTML = `✅ Uploaded successfully!`;
+        const uploadedImg = document.createElement('img');
+        uploadedImg.src = `https://raw.githubusercontent.com/${json.html_url.split('/')[3]}/${json.html_url.split('/')[4]}/main/${json.path}`;
+        uploadedImg.alt = 'uploaded';
+        uploadedImg.className = 'thumb';
+        preview.insertBefore(uploadedImg, preview.firstChild);
       } catch (err) {
         console.error(err);
         status.textContent = '❌ Error: ' + err.message;
