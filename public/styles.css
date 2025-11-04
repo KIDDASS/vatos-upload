@@ -1,0 +1,236 @@
+# GitHub Image Uploader (Vercel + GitHub)
+
+This project is a minimal **static website** + **Vercel serverless function** that lets you upload images from a web form into a GitHub repository using a GitHub Personal Access Token (stored as an environment variable in Vercel).
+
+> **Security reminder:** keep your `GITHUB_TOKEN` private. Never hardcode it into client-side code. Use Vercel environment variables.
+
+---
+
+## What to set in Vercel
+
+In your Vercel project settings, create these Environment Variables:
+
+* `GITHUB_TOKEN` — a personal access token that has `repo` (or at least `contents`) permission.
+* `GITHUB_REPO` — the repo in `owner/repo` format (example: `myusername/my-images-repo`).
+* `UPLOAD_PASSWORD` — a simple upload password. Set it to: `vatospermup`.
+
+Optionally set `BRANCH` (defaults to `main`) and `UPLOAD_PATH` (defaults to `uploads`).
+
+---
+
+## File: `public/index.html`
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GitHub Image Uploader</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="container">
+    <h1>GitHub Image Uploader</h1>
+    <p>Drag & drop an image into the box below or click to choose one. Enter the upload password (set in Vercel as <code>UPLOAD_PASSWORD</code> — we suggested <strong>vatospermup</strong>).</p>
+
+    <form id="uploadForm" class="uploader" autocomplete="off">
+      <div id="dropZone" class="drop-zone">
+        <input id="fileInput" type="file" name="image" accept="image/*" required />
+        <div class="drop-inner">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18l-5 6h3v6h4v-6h3l-5-6z"/></svg>
+          <div class="drop-text">Drag & drop image here<br><span class="muted">or click to browse</span></div>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>Password</span>
+        <input id="password" type="password" name="password" placeholder="upload password" required />
+      </label>
+
+      <button id="uploadBtn" type="submit">Upload image</button>
+    </form>
+
+    <div id="result" class="result" aria-live="polite"></div>
+  </main>
+
+  <script>
+    // Simple drag-and-drop + upload script
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const form = document.getElementById('uploadForm');
+    const result = document.getElementById('result');
+
+    // Visual helpers
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); });
+    });
+
+    // Drop file
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      if (!dt || !dt.files || dt.files.length === 0) return;
+      fileInput.files = dt.files;
+    });
+
+    // Click to open file dialog
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      result.textContent = '';
+
+      const file = fileInput.files[0];
+      const password = document.getElementById('password').value;
+
+      if (!file) return result.textContent = 'Please choose an image file.';
+      if (!password) return result.textContent = 'Please enter the upload password.';
+
+      result.textContent = 'Uploading...';
+      try {
+        const ab = await file.arrayBuffer();
+        const bytes = new Uint8Array(ab);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const b64 = btoa(binary);
+
+        const payload = {
+          filename: file.name,
+          content: b64,
+          password
+        };
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || JSON.stringify(json));
+
+        result.innerHTML = `✅ Uploaded! File: <a href="${json.html_url}" target="_blank" rel="noopener">${json.path}</a>`;
+      } catch (err) {
+        console.error(err);
+        result.textContent = 'Error: ' + (err.message || err);
+      }
+    });
+  </script>
+</body>
+</html>
+```
+
+---
+
+## File: `public/styles.css`
+
+```css
+:root{
+  --bg:#f7f8fa;
+  --card:#ffffff;
+  --muted:#6b7280;
+  --accent:#2563eb;
+  --radius:12px;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); margin:0; color:#0f172a}
+.container{max-width:760px;margin:36px auto;padding:24px}
+h1{font-size:1.6rem;margin:0 0 8px}
+.muted{color:var(--muted)}
+.uploader{display:grid;gap:12px}
+.drop-zone{background:linear-gradient(180deg,#ffffff,#fbfdff);border:1px dashed rgba(15,23,42,0.08);padding:28px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:box-shadow .15s,transform .12s}
+.drop-zone .drop-inner{display:flex;align-items:center;gap:12px}
+.drop-zone .icon{width:44px;height:44px;fill:var(--accent);opacity:.95}
+.drop-zone .drop-text{font-weight:600;text-align:center}
+.drop-zone .muted{display:block;font-weight:400;color:var(--muted);font-size:.9rem}
+.drop-zone.dragover{box-shadow:0 6px 24px rgba(37,99,235,0.12);transform:translateY(-2px)}
+.drop-zone input[type=file]{position:absolute;opacity:0;width:0;height:0}
+.field{display:flex;flex-direction:column;gap:6px}
+.field input{padding:10px;border-radius:8px;border:1px solid rgba(15,23,42,0.06)}
+button#uploadBtn{background:var(--accent);color:white;border:none;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
+.result{margin-top:12px;padding:12px;background:var(--card);border-radius:10px;border:1px solid rgba(15,23,42,0.03)}
+a{color:var(--accent)}
+@media (max-width:560px){.container{padding:16px}}
+```
+
+---
+
+## File: `api/upload.js` (Vercel Serverless Function)
+
+> *No changes required server-side for this request.* The function still accepts `filename`, `content`, and `password` and will create the file in the target repository. Keep the same `api/upload.js` from before in `/api/upload.js`.
+
+```js
+// api/upload.js
+// Vercel serverless function (Node) — place this in /api/upload.js
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+  const GITHUB_REPO = process.env.GITHUB_REPO; // owner/repo
+  const UPLOAD_PASSWORD = process.env.UPLOAD_PASSWORD || 'vatospermup';
+  const BRANCH = process.env.BRANCH || 'main';
+  const UPLOAD_PATH = process.env.UPLOAD_PATH || 'uploads';
+
+  if (!GITHUB_TOKEN || !GITHUB_REPO) {
+    return res.status(500).json({ error: 'Server misconfigured: set GITHUB_TOKEN and GITHUB_REPO in env' });
+  }
+
+  try {
+    const { filename, content, password } = req.body || {};
+    if (!filename || !content) return res.status(400).json({ error: 'Missing filename/content' });
+    if (password !== UPLOAD_PASSWORD) return res.status(401).json({ error: 'Invalid password' });
+
+    // sanitize filename
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const path = `${UPLOAD_PATH}/${ts}-${safeName}`;
+
+    const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(path)}`;
+
+    const body = {
+      message: `Add ${safeName}`,
+      content: content,
+      branch: BRANCH
+    };
+
+    const apiRes = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.github+json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    const json = await apiRes.json();
+    if (!apiRes.ok) return res.status(apiRes.status).json({ error: json.message || json });
+
+    // respond with file info
+    const fileInfo = {
+      path: json.content.path,
+      sha: json.content.sha,
+      html_url: json.content.html_url
+    };
+
+    return res.status(200).json(fileInfo);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+}
+```
+
+---
+
+If you'd like, I can now:
+
+* Add a preview thumbnail once the image is chosen, or
+* Make the drop area show the selected filename/preview, or
+* Create a ZIP with this folder structure ready to push to GitHub.
+
+Tell me which and I'll add it directly to the project.
